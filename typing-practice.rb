@@ -7,6 +7,18 @@ CHARACTERS = "йцукенгшщзхъёфывапролджэячсмитьбю
 
 @times_right = Hash.new(0)
 
+# Prefer non-mastered characters 60% of the time.
+def character_to_quiz
+  mastered_characters = @working_character_set.select do |char|
+    @times_right[char] == 4
+  end
+  non_mastered_characters = @working_character_set - mastered_characters
+  if rand < 0.6 || mastered_characters.count == 0
+    non_mastered_characters.sample
+  else mastered_characters.sample
+  end
+end
+
 def display_count(char)
   count = @times_right[char]
   if count > 3 then '*'
@@ -50,7 +62,7 @@ def quiz(char)
     @new_characters.delete new_char
     @times_right[new_char] = 0
     quiz(new_char)
-  else quiz(@working_character_set.sample)
+  else quiz(character_to_quiz)
   end
 end
 
