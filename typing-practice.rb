@@ -3,15 +3,21 @@ require 'io/console'
 CHARACTER_FILE = 'characters.txt'
 PROGRESS_FILE = 'progress.txt'
 
+TIMES_TO_MASTER = 3
+
 CHARACTERS = File.read(CHARACTER_FILE).lines.map(&:strip)
 
-# Prefer non-mastered characters 60% of the time.
 def character_to_quiz
+  # If we're just starting, or we've mastered all the characters, then any character will do.
+  if @progress.keys.count == 0 || @progress.keys.sort == CHARACTERS.sort
+    return CHARACTERS.sample
+  end
   mastered_characters = @progress.keys.select do |char|
-    @progress[char] == 4
+    @progress[char] == TIMES_TO_MASTER.succ
   end
   non_mastered_characters = @progress.keys - mastered_characters
-  if rand < 0.6 || mastered_characters.count == 0
+  # Prefer non-mastered characters 60% of the time.
+  if rand < 0.6
     non_mastered_characters.sample
   else mastered_characters.sample
   end
@@ -19,13 +25,18 @@ end
 
 def display_count(char)
   count = @progress[char]
-  if count == 4 then '*'
+  if count == TIMES_TO_MASTER.succ then '*'
   else count
   end
 end
 
 def mark_down(char)
-  @progress[char] -= 1 unless @progress[char] == 0
+  # If you get a mastered character wrong, start over.
+  count = @progress[char]
+  @progress[char] = case count
+                    when 0, TIMES_TO_MASTER.succ then 0
+                    else count - 1
+                    end
   save_progress
 end
 
@@ -73,11 +84,15 @@ def quiz(char)
     reprompt(char)
   end
   mark_up(char)
-  # Have to get everything right three times in a row before adding another character.
-  if @progress.values.all?{|value| value >= 3 }
+  # Have to get everything right TIMES_TO_MASTER times in a row before adding another character.
+  if @progress.values.all?{|value| value >= TIMES_TO_MASTER }
     new_char = (CHARACTERS - @progress.keys).sample
-    @progress[new_char] = 0
-    quiz(new_char)
+    if new_char.nil?
+      quiz(character_to_quiz)
+    else
+      @progress[new_char] = 0
+      quiz(new_char)
+    end
   else quiz(character_to_quiz)
   end
 end
