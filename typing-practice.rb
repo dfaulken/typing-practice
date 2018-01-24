@@ -1,18 +1,16 @@
 require 'io/console'
 
-CHARACTERS = "йцукенгшщзхъёфывапролджэячсмитьбю".split('')
+CHARACTER_FILE = 'characters.txt'
+PROGRESS_FILE = 'progress.txt'
 
-@working_character_set = [CHARACTERS.sample]
-@new_characters = CHARACTERS - @working_character_set
-
-@times_right = Hash.new(0)
+CHARACTERS = File.read(CHARACTER_FILE).lines.map(&:strip)
 
 # Prefer non-mastered characters 60% of the time.
 def character_to_quiz
-  mastered_characters = @working_character_set.select do |char|
-    @times_right[char] == 4
+  mastered_characters = @progress.keys.select do |char|
+    @progress[char] == 4
   end
-  non_mastered_characters = @working_character_set - mastered_characters
+  non_mastered_characters = @progress.keys - mastered_characters
   if rand < 0.6 || mastered_characters.count == 0
     non_mastered_characters.sample
   else mastered_characters.sample
@@ -20,26 +18,46 @@ def character_to_quiz
 end
 
 def display_count(char)
-  count = @times_right[char]
-  if count > 3 then '*'
+  count = @progress[char]
+  if count == 4 then '*'
   else count
   end
 end
 
 def mark_down(char)
-  @times_right[char] -= 1 unless @times_right[char] == 0
+  @progress[char] -= 1 unless @progress[char] == 0
+  save_progress
 end
 
 def mark_up(char)
-  @times_right[char] += 1 unless @times_right[char] == 4
+  @progress[char] += 1 unless @progress[char] == 4
+  save_progress
 end
 
 def reprompt(char)
   print "\rTry again (#{char}):"
 end
 
+def parse_progress(data)
+  progress = {}
+  data.lines.each do |line|
+    char, count = line.split(': ').map(&:strip)
+    progress[char] = count.to_i
+  end
+  progress
+end
+
 def prompt(char)
   print "\rType #{char}: (#{display_count(char)})   "
+end
+
+def save_progress
+  encoded_progress = @progress.each_pair.map do |char, count|
+    "#{char}: #{count}"
+  end
+  File.open PROGRESS_FILE, 'w' do |file|
+    file.puts encoded_progress
+  end
 end
 
 def typed_char
@@ -56,14 +74,20 @@ def quiz(char)
   end
   mark_up(char)
   # Have to get everything right three times in a row before adding another character.
-  if @times_right.values.all?{|times_right| times_right >= 3 }
-    new_char = @new_characters.sample
-    @working_character_set << new_char
-    @new_characters.delete new_char
-    @times_right[new_char] = 0
+  if @progress.values.all?{|value| value >= 3 }
+    new_char = (CHARACTERS - @progress.keys).sample
+    @progress[new_char] = 0
     quiz(new_char)
   else quiz(character_to_quiz)
   end
 end
 
-quiz(@working_character_set.first)
+if File.file? PROGRESS_FILE
+  progress_data = File.read PROGRESS_FILE
+  @progress = parse_progress(progress_data)
+  quiz(character_to_quiz)
+else
+  first_char = CHARACTERS.sample
+  @progress = { first_char => 0 }
+  quiz(first_char)
+end
